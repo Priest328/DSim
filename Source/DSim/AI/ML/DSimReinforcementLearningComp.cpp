@@ -241,7 +241,7 @@ void UDSimReinforcementLearningComp::TickComponent(float DeltaTime, ELevelTick T
 		const int32 CurrentIndex = DebugData.CurrentSectionIndex;
 		const FColor Color = (i == CurrentIndex) ? FColor::Yellow : FColor::Green;
 
-		DrawDebugLine(GetWorld(), A, B, Color, false, 0.f, 0, 1.f);
+		DrawDebugLine(GetWorld(), A, B, Color, false, 0.f, 0, 8.f);
 
 		if (i % 5 == 0)
 		{
@@ -275,7 +275,7 @@ void UDSimReinforcementLearningComp::TickComponent(float DeltaTime, ELevelTick T
 				{
 					C = FColor::Yellow;
 				}
-				DrawDebugLine(GetWorld(), A, B, C, false, 0.f, 0, 1.5f);
+				DrawDebugLine(GetWorld(), A, B, C, false, 0.f, 0, 9.5f);
 			}
 
 			for (int32 l = 0; l < SafeLanes; ++l)
