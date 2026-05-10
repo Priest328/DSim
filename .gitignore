@@ -85,3 +85,4 @@ Content/**
 
 !Content/Blueprints/
 !Content/Blueprints/**
+*.DotSettings.user

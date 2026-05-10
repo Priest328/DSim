@@ -1,6 +1,5 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "DSim/AI/DSimCharacterAIController.h"
 
 #include "DSim/Character/DSimCharacter.h"
@@ -72,15 +71,15 @@ void ADSimCharacterAIController::BeginPlay()
 	);
 
 		FActorSpawnParameters Params;
-	Params.Owner = GetOwner();
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		Params.Owner = GetOwner();
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	GetWorld()->SpawnActor<ASphereActor>(
-	  SphereMarkerClass,
-	  AdjustedPoint,
-	  FRotator::ZeroRotator,
-	  Params
-	);
+		// GetWorld()->SpawnActor<ASphereActor>(
+		//   SphereMarkerClass,
+		//   AdjustedPoint,
+		//   FRotator::ZeroRotator,
+		//   Params
+		// );
 	}, 0.5f, true);
 }
 
@@ -97,12 +96,22 @@ void ADSimCharacterAIController::OnPossess(APawn* InPawn)
 
 	TArray<AActor*> Goals;
 	UGameplayStatics::GetAllActorsOfClass(this, ADSimGoalActor::StaticClass(), Goals);
-	if (Goals.IsEmpty()) return;
+	if (!Goals.IsEmpty())
+	{
+		const FVector GoalPosition = Goals[0]->GetActorLocation();
+		GetBlackboardComponent()->SetValueAsVector(AIBlackboardKeys::GoalLocation, GoalPosition);
 
-	FVector GoalPosition = Goals[0]->GetActorLocation();
-	GetBlackboardComponent()->SetValueAsVector(AIBlackboardKeys::GoalLocation, GoalPosition);
+		// Важливо для 2D-дискретизації, щоб RL-компонент знав актуальну ціль ще до першого RequestAction()
+		if (IsValid(RLComp))
+		{
+			RLComp->SetGoalPosition(GoalPosition);
+		}
+	}
 
-	RLComp->InitComponentData();
+	if (IsValid(RLComp))
+	{
+		RLComp->InitComponentData();
+	}
 }
 
 void ADSimCharacterAIController::DrawLocations()
