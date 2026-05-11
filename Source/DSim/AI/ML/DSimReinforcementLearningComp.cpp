@@ -154,15 +154,221 @@ UDSimReinforcementLearningComp::UDSimReinforcementLearningComp()
 	bWantsInitializeComponent = true;
 }
 
-void UDSimReinforcementLearningComp::InitComponentData()
+void UDSimReinforcementLearningComp::ResolveOwnerReferences()
 {
-	AIController = Cast<ADSimCharacterAIController>(GetOwner());
-	if (!AIController)
+	if (OwnerActor && AIController)
 	{
 		return;
 	}
 
-	OwnerActor = Cast<ADSimCharacter>(AIController->GetPawn());
+	if (ADSimCharacterAIController* OwnerAsController = Cast<ADSimCharacterAIController>(GetOwner()))
+	{
+		AIController = OwnerAsController;
+		OwnerActor = Cast<ADSimCharacter>(AIController->GetPawn());
+		return;
+	}
+
+	if (ADSimCharacter* OwnerAsCharacter = Cast<ADSimCharacter>(GetOwner()))
+	{
+		OwnerActor = OwnerAsCharacter;
+		AIController = Cast<ADSimCharacterAIController>(OwnerActor->GetController());
+		return;
+	}
+}
+
+const UDSimReinforcementLearningConfig* UDSimReinforcementLearningComp::GetRLConfig() const
+{
+	return Cast<UDSimReinforcementLearningConfig>(AlgorithmConfig);
+}
+
+void UDSimReinforcementLearningComp::ApplyRLConfig(const UDSimReinforcementLearningConfig* Config)
+{
+	if (!Config)
+	{
+		return;
+	}
+
+	Alpha = Config->LearningRate;
+	Gamma = Config->DiscountFactor;
+
+	CurrentEpsilon = Config->EpsilonStart;
+	EpsilonMin = Config->EpsilonMin;
+	EpsilonDecay = Config->EpsilonDecay;
+
+	ReplayBufferSize = FMath::Max(1, Config->ReplayBufferSize);
+	NumSections = FMath::Max(1, Config->NumSections);
+
+	switch (Config->StateRepresentationMode)
+	{
+	case EDSimStateRepresentationMode::OneD:
+		bUse2DState = false;
+		NumLanes = 1;
+		break;
+
+	case EDSimStateRepresentationMode::TwoD:
+	case EDSimStateRepresentationMode::TwoDThreatAware:
+	default:
+		bUse2DState = true;
+		NumLanes = FMath::Max(1, Config->NumLanes);
+		break;
+	}
+
+	LaneHalfWidth = FMath::Max(1.f, Config->LaneHalfWidth);
+
+	GoalReachedTerminalReward = Config->GoalReachedTerminalReward;
+	BotKilledTerminalReward = Config->BotKilledTerminalReward;
+	DroneCrashedTerminalReward = Config->DroneCrashedTerminalReward;
+	TimeoutTerminalReward = Config->TimeoutTerminalReward;
+	CriticalDroneDistance = Config->CriticalDroneDistance;
+
+	bDrawDebug = Config->bDrawDebug;
+
+	SaveFileName1D = Config->LegacySaveFileName1D;
+	SaveFileName2D = Config->LegacySaveFileName2D;
+}
+
+void UDSimReinforcementLearningComp::InitializeAlgorithm(
+	const FDSimAlgorithmRuntimeContext& InContext,
+	UDSimBotTrainingAlgorithmConfig* InConfig
+)
+{
+	// Do not call Super::InitializeAlgorithm() here because the base implementation may load data
+	// before this derived component applies its RL-specific config.
+	RuntimeContext = InContext;
+	AlgorithmConfig = InConfig;
+
+	bUseExperimentOutputFiles = !InContext.OutputTrainingFile.IsEmpty();
+	bCurrentEpisodeFinalized = false;
+
+	ApplyRLConfig(Cast<UDSimReinforcementLearningConfig>(InConfig));
+	ResolveOwnerReferences();
+
+	if (OwnerActor)
+	{
+		StartPosition = OwnerActor->GetActorLocation();
+	}
+
+	PathLength = FMath::Max(10.f, FVector::Dist(StartPosition, GoalPosition));
+
+	StateDiscretizer = bUse2DState
+		? TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer2D())
+		: TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer1D());
+
+	ActionPolicy = TUniquePtr<IRLActionPolicy>(new FEpsilonGreedyPolicy());
+	DataRepository = TUniquePtr<IRLDataRepository>(new FRLJsonRepository());
+
+	if (!InContext.InitialTrainingFile.IsEmpty())
+	{
+		LoadTrainingData(InContext.InitialTrainingFile);
+	}
+	else
+	{
+		RLData2D.NumSections = FMath::Max(1, NumSections);
+		RLData2D.NumLanes = bUse2DState ? FMath::Max(1, NumLanes) : 1;
+		RLData2D.LaneHalfWidth = bUse2DState ? FMath::Max(1.f, LaneHalfWidth) : RLData2D.LaneHalfWidth;
+		RebuildStateIndex();
+	}
+
+	StartNewEpisode();
+}
+
+void UDSimReinforcementLearningComp::StartEpisode(int32 EpisodeId)
+{
+	Super::StartEpisode(EpisodeId);
+
+	ResolveOwnerReferences();
+	bCurrentEpisodeFinalized = false;
+	StartNewEpisode();
+}
+
+void UDSimReinforcementLearningComp::EndEpisode(EDSimEpisodeFinishReason FinishReason)
+{
+	Super::EndEpisode(FinishReason);
+
+	if (bCurrentEpisodeFinalized)
+	{
+		return;
+	}
+
+	const float TerminalReward = GetTerminalRewardForFinishReason(FinishReason);
+
+	if (CurrentEpisode.Num() > 0)
+	{
+		CurrentEpisode.Last().Reward += TerminalReward;
+	}
+
+	OnEpisodeEnd();
+	DecayEpsilon();
+
+	bCurrentEpisodeFinalized = true;
+}
+
+EBotAction UDSimReinforcementLearningComp::RequestTrainingAction()
+{
+	return RequestAction();
+}
+
+void UDSimReinforcementLearningComp::AddTrainingReward(float Reward)
+{
+	ApplyReward(Reward, false);
+}
+
+FString UDSimReinforcementLearningComp::GetAlgorithmName() const
+{
+	const UDSimReinforcementLearningConfig* RLConfig = GetRLConfig();
+	if (RLConfig && RLConfig->StateRepresentationMode == EDSimStateRepresentationMode::TwoDThreatAware)
+	{
+		return TEXT("TabularRL_2D_ThreatAware");
+	}
+
+	return bUse2DState ? TEXT("TabularRL_2D") : TEXT("TabularRL_1D");
+}
+
+float UDSimReinforcementLearningComp::GetTerminalRewardForFinishReason(
+	EDSimEpisodeFinishReason FinishReason
+) const
+{
+	switch (FinishReason)
+	{
+	case EDSimEpisodeFinishReason::GoalReached:
+		return GoalReachedTerminalReward;
+
+	case EDSimEpisodeFinishReason::BotKilledByDrone:
+		return BotKilledTerminalReward;
+
+	case EDSimEpisodeFinishReason::DroneCrashed:
+		return DroneCrashedTerminalReward;
+
+	case EDSimEpisodeFinishReason::Timeout:
+		return TimeoutTerminalReward;
+
+	case EDSimEpisodeFinishReason::StoppedManually:
+	case EDSimEpisodeFinishReason::Unknown:
+	default:
+		return 0.f;
+	}
+}
+
+FString UDSimReinforcementLearningComp::ResolveTrainingDataPath(const FString& FileName) const
+{
+	if (FileName.IsEmpty())
+	{
+		return GetRLDataSavePath();
+	}
+
+	if (FPaths::IsRelative(FileName))
+	{
+		return FPaths::ProjectSavedDir() / FileName;
+	}
+
+	return FileName;
+}
+
+
+void UDSimReinforcementLearningComp::InitComponentData()
+{
+	ResolveOwnerReferences();
+
 	if (!OwnerActor)
 	{
 		return;
@@ -195,9 +401,15 @@ void UDSimReinforcementLearningComp::InitComponentData()
 void UDSimReinforcementLearningComp::SetGoalPosition(const FVector& NewGoalPosition)
 {
 	GoalPosition = NewGoalPosition;
+
+	ResolveOwnerReferences();
+
 	if (OwnerActor)
 	{
-		StartPosition = StartPosition.IsNearlyZero() ? OwnerActor->GetActorLocation() : StartPosition;
+		StartPosition = StartPosition.IsNearlyZero()
+			? OwnerActor->GetActorLocation()
+			: StartPosition;
+
 		PathLength = FMath::Max(10.f, FVector::Dist(StartPosition, GoalPosition));
 	}
 }
@@ -380,7 +592,7 @@ EBotAction UDSimReinforcementLearningComp::RequestAction()
 
 	FDSimRLStateData2D* State = FindOrAddState(Key);
 
-	const EBotAction Action = ActionPolicy->SelectAction(State->Actions, Epsilon);
+	const EBotAction Action = ActionPolicy->SelectAction(State->Actions, CurrentEpsilon);
 
 	FEpisodeStep Step;
 	Step.PackedKey = Key.PackedKey;
@@ -432,7 +644,7 @@ void UDSimReinforcementLearningComp::ApplyReward(float Reward, bool bEpisodeEnd)
 {
 	if (CurrentEpisode.Num() > 0)
 	{
-		CurrentEpisode.Last().Reward = Reward;
+		CurrentEpisode.Last().Reward += Reward;
 	}
 
 	UDSimDebugComponent* DebugComponent = UDSimBlueprintFunctionLibrary::GetDebugComponent(GetWorld());
@@ -441,11 +653,9 @@ void UDSimReinforcementLearningComp::ApplyReward(float Reward, bool bEpisodeEnd)
 		DebugComponent->UpdateReward(Reward);
 	}
 
-	if (bEpisodeEnd)
+	if (bEpisodeEnd && !bCurrentEpisodeFinalized)
 	{
-		OnEpisodeEnd();
-		StartNewEpisode();
-		DecayEpsilon();
+		EndEpisode(EDSimEpisodeFinishReason::Unknown);
 	}
 }
 
@@ -568,7 +778,10 @@ void UDSimReinforcementLearningComp::OnEpisodeEnd()
 		ReplayBuffer.RemoveAt(0);
 	}
 
-	SaveRLDataToFile();
+	if (!bUseExperimentOutputFiles)
+	{
+		SaveRLDataToFile();
+	}
 
 	LogRLDebug(TEXT("Episode finished: reward propagated."));
 
@@ -594,12 +807,12 @@ void UDSimReinforcementLearningComp::StartNewEpisode()
 
 void UDSimReinforcementLearningComp::DecayEpsilon()
 {
-	Epsilon = FMath::Max(Epsilon * EpsilonDecay, EpsilonMin);
+	CurrentEpsilon = FMath::Max(CurrentEpsilon * EpsilonDecay, EpsilonMin);
 }
 
 void UDSimReinforcementLearningComp::LogRLDebug(const FString& Msg)
 {
-	UE_LOG(LogTemp, Log, TEXT("[RL] %s | Epsilon=%.3f"), *Msg, Epsilon);
+	UE_LOG(LogTemp, Log, TEXT("[RL] %s | Epsilon=%.3f"), *Msg, CurrentEpsilon);
 }
 
 void UDSimReinforcementLearningComp::RebuildStateIndex()
@@ -613,6 +826,11 @@ void UDSimReinforcementLearningComp::RebuildStateIndex()
 
 bool UDSimReinforcementLearningComp::SaveRLDataToFile()
 {
+	return SaveTrainingData(GetRLDataSavePath());
+}
+
+bool UDSimReinforcementLearningComp::SaveTrainingData(const FString& FileName)
+{
 	if (!DataRepository)
 	{
 		DataRepository = TUniquePtr<IRLDataRepository>(new FRLJsonRepository());
@@ -622,8 +840,43 @@ bool UDSimReinforcementLearningComp::SaveRLDataToFile()
 	RLData2D.NumLanes = bUse2DState ? FMath::Max(1, NumLanes) : 1;
 	RLData2D.LaneHalfWidth = bUse2DState ? FMath::Max(1.f, LaneHalfWidth) : RLData2D.LaneHalfWidth;
 
-	const FString Path = GetRLDataSavePath();
+	const FString Path = ResolveTrainingDataPath(FileName);
+	const FString Directory = FPaths::GetPath(Path);
+	IFileManager::Get().MakeDirectory(*Directory, true);
+
 	return DataRepository->Save(RLData2D, Path);
+}
+
+bool UDSimReinforcementLearningComp::LoadTrainingData(const FString& FileName)
+{
+	if (!DataRepository)
+	{
+		DataRepository = TUniquePtr<IRLDataRepository>(new FRLJsonRepository());
+	}
+
+	const FString Path = ResolveTrainingDataPath(FileName);
+
+	FDSimRLData2D LoadedData;
+	if (!DataRepository->Load(LoadedData, Path))
+	{
+		RLData2D.NumSections = FMath::Max(1, NumSections);
+		RLData2D.NumLanes = bUse2DState ? FMath::Max(1, NumLanes) : 1;
+		RLData2D.LaneHalfWidth = bUse2DState ? FMath::Max(1.f, LaneHalfWidth) : RLData2D.LaneHalfWidth;
+		RLData2D.AllStates.Empty();
+		StateIndexByPackedKey.Empty();
+		return false;
+	}
+
+	RLData2D = LoadedData;
+
+	NumSections = FMath::Max(1, RLData2D.NumSections);
+	NumLanes = FMath::Max(1, RLData2D.NumLanes);
+	LaneHalfWidth = FMath::Max(1.f, RLData2D.LaneHalfWidth);
+	bUse2DState = NumLanes > 1;
+
+	RebuildStateIndex();
+
+	return true;
 }
 
 bool UDSimReinforcementLearningComp::LoadRLDataFromFile()

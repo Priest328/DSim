@@ -1,23 +1,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Components/ActorComponent.h"
+#include "DSim/AI/ML/DSimReinforcementLearningConfig.h"
+#include "DSim/AI/Training/DSimBotTrainingAlgorithmComponent.h"
 #include "DSimReinforcementLearningComp.generated.h"
 
 class ADSimCharacterAIController;
 class ADSimCharacter;
-
-/**
- * Набір доступних дискретних дій агента
- */
-UENUM(BlueprintType)
-enum class EBotAction : uint8
-{
-	None UMETA(DisplayName = "None"),
-	TowardGoal UMETA(DisplayName = "Toward Goal"),
-	TowardCover UMETA(DisplayName = "Toward Cover"),
-	RandomMove UMETA(DisplayName = "Random Move"),
-};
 
 USTRUCT(BlueprintType)
 struct FDSimBotActionData
@@ -32,7 +21,7 @@ struct FDSimBotActionData
 };
 
 /**
- * Legacy 1D дані (для міграції зі старого RLData.json)
+ * Legacy 1D data, used for migration from old RLData.json files.
  */
 USTRUCT(BlueprintType)
 struct FDSimRLSectionData
@@ -47,7 +36,7 @@ struct FDSimRLSectionData
 
 	FDSimBotActionData* FindAction(EBotAction Action)
 	{
-		for (auto& A : Actions)
+		for (FDSimBotActionData& A : Actions)
 		{
 			if (A.BotAction == Action)
 			{
@@ -68,7 +57,7 @@ struct FDSimRLData
 
 	FDSimRLSectionData* FindSection(float InSectionKey)
 	{
-		for (auto& S : AllSections)
+		for (FDSimRLSectionData& S : AllSections)
 		{
 			if (FMath::IsNearlyEqual(S.SectionKey, InSectionKey, KINDA_SMALL_NUMBER))
 			{
@@ -80,7 +69,7 @@ struct FDSimRLData
 };
 
 // ==============================
-// TO-BE 2D state model
+// 2D state model
 // ==============================
 USTRUCT(BlueprintType)
 struct FDSimRLStateKey
@@ -119,7 +108,7 @@ struct FDSimRLStateData2D
 
 	FDSimBotActionData* FindAction(EBotAction Action)
 	{
-		for (auto& A : Actions)
+		for (FDSimBotActionData& A : Actions)
 		{
 			if (A.BotAction == Action)
 			{
@@ -269,7 +258,7 @@ public:
 // RL component
 // ==============================
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
-class DSIM_API UDSimReinforcementLearningComp : public UActorComponent
+class DSIM_API UDSimReinforcementLearningComp : public UDSimBotTrainingAlgorithmComponent
 {
 	GENERATED_BODY()
 
@@ -277,8 +266,24 @@ public:
 	UDSimReinforcementLearningComp();
 
 	void InitComponentData();
+
+	// Legacy direct API. BT and SimulationManager should use RequestTrainingAction()/AddTrainingReward()/EndEpisode().
 	EBotAction RequestAction();
 	void ApplyReward(float Reward, bool bEpisodeEnd);
+
+	virtual void InitializeAlgorithm(
+		const FDSimAlgorithmRuntimeContext& InContext,
+		UDSimBotTrainingAlgorithmConfig* InConfig
+	) override;
+
+	virtual void StartEpisode(int32 EpisodeId) override;
+	virtual void EndEpisode(EDSimEpisodeFinishReason FinishReason) override;
+	virtual EBotAction RequestTrainingAction() override;
+	virtual void AddTrainingReward(float Reward) override;
+	virtual void SetGoalPosition(const FVector& NewGoalPosition) override;
+	virtual bool LoadTrainingData(const FString& FileName) override;
+	virtual bool SaveTrainingData(const FString& FileName) override;
+	virtual FString GetAlgorithmName() const override;
 
 	UFUNCTION(BlueprintCallable)
 	bool SaveRLDataToFile();
@@ -292,9 +297,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RL|Debug")
 	void SetDrawDebug(bool bEnable);
 
-	UFUNCTION(BlueprintCallable, Category = "RL|State")
-	void SetGoalPosition(const FVector& NewGoalPosition);
-
 	UFUNCTION(BlueprintPure, Category = "RL|Debug")
 	const FRLDebugRuntimeData& GetDebugData() const { return DebugData; }
 
@@ -305,10 +307,17 @@ protected:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
+	void ResolveOwnerReferences();
+	void ApplyRLConfig(const UDSimReinforcementLearningConfig* Config);
+	const UDSimReinforcementLearningConfig* GetRLConfig() const;
+
 	void OnEpisodeEnd();
 	void StartNewEpisode();
 	void DecayEpsilon();
 	void LogRLDebug(const FString& Msg);
+
+	float GetTerminalRewardForFinishReason(EDSimEpisodeFinishReason FinishReason) const;
+	FString ResolveTrainingDataPath(const FString& FileName) const;
 
 	void UpdateDebugNextSections(const FDSimRLStateKey& CurrentKey);
 	void ExtractQValues(const TArray<FDSimBotActionData>& Actions, float& OutGoal, float& OutCover, float& OutRandom) const;
@@ -334,43 +343,63 @@ private:
 
 	TArray<TArray<FEpisodeStep>> ReplayBuffer;
 
-	UPROPERTY(EditAnywhere, Category = "RL")
+	// Runtime copies from UDSimReinforcementLearningConfig.
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	int32 ReplayBufferSize = 100;
 
-	UPROPERTY(EditAnywhere, Category = "RL")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	float Gamma = 0.95f;
 
-	UPROPERTY(EditAnywhere, Category = "RL")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	float Alpha = 0.3f;
 
-	UPROPERTY(EditAnywhere, Category = "RL")
-	float Epsilon = 0.2f;
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
+	float CurrentEpsilon = 0.2f;
 
-	UPROPERTY(EditAnywhere, Category = "RL")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	float EpsilonMin = 0.05f;
 
-	UPROPERTY(EditAnywhere, Category = "RL")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	float EpsilonDecay = 0.99f;
 
-	UPROPERTY(EditAnywhere, Category = "RL|State")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	int32 NumSections = 100;
 
-	UPROPERTY(EditAnywhere, Category = "RL|State")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	bool bUse2DState = true;
 
-	UPROPERTY(EditAnywhere, Category = "RL|State", meta = (EditCondition = "bUse2DState"))
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	int32 NumLanes = 5;
 
-	UPROPERTY(EditAnywhere, Category = "RL|State", meta = (EditCondition = "bUse2DState"))
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	float LaneHalfWidth = 1500.f;
 
-	UPROPERTY(EditAnywhere, Category = "RL")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
 	float CriticalDroneDistance = 900.f;
 
-	UPROPERTY(EditAnywhere, Category = "RL|IO")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Reward")
+	float GoalReachedTerminalReward = 1.0f;
+
+	UPROPERTY(VisibleAnywhere, Category = "RL|Reward")
+	float BotKilledTerminalReward = -1.0f;
+
+	UPROPERTY(VisibleAnywhere, Category = "RL|Reward")
+	float DroneCrashedTerminalReward = 0.4f;
+
+	UPROPERTY(VisibleAnywhere, Category = "RL|Reward")
+	float TimeoutTerminalReward = -0.2f;
+
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
+	bool bCurrentEpisodeFinalized = false;
+
+	UPROPERTY(VisibleAnywhere, Category = "RL|Runtime")
+	bool bUseExperimentOutputFiles = false;
+
+	// Legacy fallback file names for manual tests outside SimulationManager.
+	UPROPERTY(VisibleAnywhere, Category = "RL|Legacy IO")
 	FString SaveFileName1D = TEXT("RLData_1D.json");
 
-	UPROPERTY(EditAnywhere, Category = "RL|IO")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Legacy IO")
 	FString SaveFileName2D = TEXT("RLData_2D.json");
 
 	UPROPERTY()
@@ -384,7 +413,7 @@ private:
 	FRLSectionStepDebug LastEnteredSection;
 
 public:
-	UPROPERTY(EditAnywhere, Category = "RL|Debug")
+	UPROPERTY(VisibleAnywhere, Category = "RL|Debug")
 	bool bDrawDebug = false;
 
 	UPROPERTY(VisibleAnywhere, Category = "RL|Debug")

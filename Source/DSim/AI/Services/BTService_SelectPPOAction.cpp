@@ -5,47 +5,62 @@
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "DSim/AI/DSimCharacterAIController.h"
-#include "DSim/AI/ML/DSimReinforcementLearningComp.h"
+#include "DSim/AI/Training/DSimBotTrainingAlgorithmComponent.h"
 #include "DSim/Character/DSimCharacter.h"
 
 UBTService_SelectPPOAction::UBTService_SelectPPOAction()
 {
 	bNotifyBecomeRelevant = true;
 	bNotifyTick = true;
-	NodeName = "Select PPO Action";
+	NodeName = "Select Bot Training Action";
 }
 
-void UBTService_SelectPPOAction::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
+void UBTService_SelectPPOAction::TickNode(
+	UBehaviorTreeComponent& OwnerComp,
+	uint8* NodeMemory,
+	float DeltaSeconds
+)
 {
 	Super::TickNode(OwnerComp, NodeMemory, DeltaSeconds);
 
 	ADSimCharacterAIController* AICon = Cast<ADSimCharacterAIController>(OwnerComp.GetAIOwner());
-	ADSimCharacter* Bot = Cast<ADSimCharacter>(AICon ? AICon->GetPawn() : nullptr);
+	if (!IsValid(AICon))
+	{
+		return;
+	}
+
+	ADSimCharacter* Bot = Cast<ADSimCharacter>(AICon->GetPawn());
 	if (!IsValid(Bot))
 	{
 		return;
 	}
 
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
-	if (!BB)
+	if (!IsValid(BB))
 	{
 		return;
 	}
 
 	const FVector Goal = BB->GetValueAsVector(AIBlackboardKeys::GoalLocation);
 
-	UDSimReinforcementLearningComp* RL = IsValid(AICon) ? AICon->RLComp : nullptr;
-	if (!IsValid(RL))
+	UDSimBotTrainingAlgorithmComponent* Algorithm =
+		Bot->FindComponentByClass<UDSimBotTrainingAlgorithmComponent>();
+
+	if (!IsValid(Algorithm))
+	{
+		Algorithm = AICon->FindComponentByClass<UDSimBotTrainingAlgorithmComponent>();
+	}
+
+	if (!IsValid(Algorithm))
 	{
 		return;
 	}
 
-	// Даємо RL-компоненту актуальну ціль (важливо, якщо ціль/маркер рухається або змінюється в BT)
 	if (!Goal.IsNearlyZero())
 	{
-		RL->SetGoalPosition(Goal);
+		Algorithm->SetGoalPosition(Goal);
 	}
 
-	const EBotAction Action = RL->RequestAction();
+	const EBotAction Action = Algorithm->RequestTrainingAction();
 	BB->SetValueAsEnum(AIBlackboardKeys::CurrentBotAction, static_cast<uint8>(Action));
 }

@@ -177,6 +177,22 @@ public:
 	FVector GetAttackDiveTarget() const { return AttackDiveTarget; }
 
 public:
+	// -----------------------------
+	// Drone Manager
+	// -----------------------------
+	UFUNCTION(BlueprintCallable, Category = "Drone|Training")
+	void SetArenaId(int32 NewArenaId) { ArenaId = NewArenaId; }
+
+	UFUNCTION(BlueprintCallable, Category = "Drone|Training")
+	void ResetAutopilotRuntime();
+
+	UFUNCTION(BlueprintCallable, Category = "Drone|Training")
+	void StartAutopilotLogic();
+
+	UFUNCTION(BlueprintCallable, Category = "Drone|Training")
+	void StopAutopilotLogic();
+	
+public:
 	UPROPERTY(EditAnywhere, Category = "Drone|Control")
 	bool bSmoothStabilization = true;
 

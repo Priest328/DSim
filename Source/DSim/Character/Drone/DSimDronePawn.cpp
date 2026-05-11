@@ -722,3 +722,36 @@ void ADSimDronePawn::AbortAttackDive()
 		SetAutopilotState(EDroneAutopilotState::Pursuit);
 	}
 }
+
+void ADSimDronePawn::ResetAutopilotRuntime()
+{
+	AbortAttackDive();
+
+	DesiredFlightTarget = FVector::ZeroVector;
+	SafeFlightTarget = FVector::ZeroVector;
+	CurrentAutopilotVelocity = FVector::ZeroVector;
+	LastAttackTime = -1000.f;
+
+	SetAutopilotState(EDroneAutopilotState::Idle);
+}
+
+void ADSimDronePawn::StartAutopilotLogic()
+{
+	if (IsValid(StateTreeComponent) && DroneControlMode != EDroneControlMode::HumanControlled)
+	{
+		StateTreeComponent->StartLogic();
+	}
+}
+
+void ADSimDronePawn::StopAutopilotLogic()
+{
+	SetAutopilotState(EDroneAutopilotState::Stopped);
+	AbortAttackDive();
+
+	CurrentAutopilotVelocity = FVector::ZeroVector;
+
+	if (IsValid(StateTreeComponent))
+	{
+		StateTreeComponent->StopLogic(TEXT("Simulation episode stopped"));
+	}
+}
