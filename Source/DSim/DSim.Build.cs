@@ -20,7 +20,9 @@ public class DSim : ModuleRules
 			"NavigationSystem",
 			"Json",
 			"JsonUtilities",
-			"UMG"
+			"UMG",
+			"StateTreeModule",
+			"GameplayStateTreeModule",
 		});
 	}
 }
