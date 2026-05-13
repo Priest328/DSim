@@ -3,6 +3,7 @@
 
 #include "DSim/Libraries/DSimBlueprintFunctionLibrary.h"
 
+#include "DSim/AI/Training/DSimSimulationManager.h"
 #include "DSim/Player/DSimDroneController.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -49,4 +50,15 @@ void UDSimBlueprintFunctionLibrary::DrawMovementPathInTheLevel(const UObject* Wo
 			1.0f
 		);
 	}
+}
+
+ADSimSimulationManager* UDSimBlueprintFunctionLibrary::GetSimulationManager(UObject* WorldContextObj)
+{
+	if (!IsValid(WorldContextObj))
+	{
+		return nullptr;
+	}
+	
+	return Cast<ADSimSimulationManager>(
+	UGameplayStatics::GetActorOfClass(WorldContextObj->GetWorld(), ADSimSimulationManager::StaticClass()));
 }

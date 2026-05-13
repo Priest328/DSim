@@ -54,3 +54,48 @@ struct FDSimAlgorithmRuntimeContext
 	UPROPERTY(BlueprintReadOnly)
 	EDSimStateRepresentationMode StateRepresentationMode = EDSimStateRepresentationMode::TwoD;
 };
+
+USTRUCT(BlueprintType)
+struct FDSimEpisodeSummary
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 RunId = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 PairIndex = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 ArenaId = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 EpisodeId = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	FString AlgorithmName;
+
+	UPROPERTY(BlueprintReadOnly)
+	EDSimStateRepresentationMode StateRepresentationMode = EDSimStateRepresentationMode::OneD;
+
+	UPROPERTY(BlueprintReadOnly)
+	EDSimEpisodeFinishReason FinishReason = EDSimEpisodeFinishReason::Unknown;
+
+	UPROPERTY(BlueprintReadOnly)
+	float TotalReward = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly)
+	float EpisodeDuration = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 TowardGoalCount = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 TowardCoverCount = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 RandomMoveCount = 0;
+
+	UPROPERTY(BlueprintReadOnly)
+	FString OutputTrainingFile;
+};

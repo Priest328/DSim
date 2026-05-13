@@ -62,5 +62,8 @@ void UBTService_SelectPPOAction::TickNode(
 	}
 
 	const EBotAction Action = Algorithm->RequestTrainingAction();
+
+	Algorithm->RecordSelectedAction(Action);
+
 	BB->SetValueAsEnum(AIBlackboardKeys::CurrentBotAction, static_cast<uint8>(Action));
 }

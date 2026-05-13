@@ -191,6 +191,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Drone|Training")
 	void StopAutopilotLogic();
+
+private:
+	UFUNCTION()
+	void FinishAutopilotStartDelay();
+
+	UPROPERTY(VisibleAnywhere, Category = "Drone|Autopilot")
+	bool bWaitingForAutopilotStart = false;
+
+	FTimerHandle AutopilotStartDelayTimer;
 	
 public:
 	UPROPERTY(EditAnywhere, Category = "Drone|Control")
@@ -228,6 +237,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Drone|Autopilot")
 	float RandomAttackOffset = 450.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drone|Autopilot", meta = (ClampMin = "0.0"))
+	float AutopilotStartDelay = 0.0f;
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")

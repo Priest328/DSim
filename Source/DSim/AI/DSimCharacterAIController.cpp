@@ -43,6 +43,24 @@ void ADSimCharacterAIController::OnDeath()
 	}
 }
 
+void ADSimCharacterAIController::StopEpisodeLogic()
+{
+	StopMovement();
+
+	if (UBrainComponent* Brain = GetBrainComponent())
+	{
+		Brain->StopLogic(TEXT("Episode finished"));
+	}
+}
+
+void ADSimCharacterAIController::StartEpisodeLogic()
+{
+	if (UBrainComponent* Brain = GetBrainComponent())
+	{
+		Brain->RestartLogic();
+	}
+}
+
 void ADSimCharacterAIController::BeginPlay()
 {
 	Super::BeginPlay();

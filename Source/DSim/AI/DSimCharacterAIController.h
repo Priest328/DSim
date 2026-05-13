@@ -31,6 +31,12 @@ class DSIM_API ADSimCharacterAIController : public AAIController
 public:
 	UFUNCTION()
 	void OnDeath();
+
+	UFUNCTION(BlueprintCallable, Category = "AI|Episode")
+	void StopEpisodeLogic();
+
+	UFUNCTION(BlueprintCallable, Category = "AI|Episode")
+	void StartEpisodeLogic();
 	
 protected:
 	virtual void BeginPlay() override;

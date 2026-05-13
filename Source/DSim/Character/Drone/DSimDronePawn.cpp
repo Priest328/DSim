@@ -19,6 +19,7 @@
 #include "GameFramework/FloatingPawnMovement.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Components/StateTreeComponent.h"
+#include "DSim/AI/Training/DSimSimulationManager.h"
 #include "Kismet/GameplayStatics.h"
 
 ADSimDronePawn::ADSimDronePawn()
@@ -32,13 +33,14 @@ ADSimDronePawn::ADSimDronePawn()
 
 	StateTreeComponent = CreateDefaultSubobject<UStateTreeComponent>("DroneStateTreeComp");
 	DronePerceptionComponent = CreateDefaultSubobject<UDSimDronePerceptionComponent>("DronePerceptionComp");
-	DroneFlightNavigationComponent = CreateDefaultSubobject<UDSimDroneFlightNavigationComponent>("DroneFlightNavigationComp");
+	DroneFlightNavigationComponent = CreateDefaultSubobject<UDSimDroneFlightNavigationComponent>(
+		"DroneFlightNavigationComp");
 	DroneTelemetryComponent = CreateDefaultSubobject<UDSimDroneTelemetryComponent>("DroneTelemetryComp");
 
 	SetRootComponent(BoxComponent);
 
 	MeshComponent->SetupAttachment(GetRootComponent());
-	SpringArmComponent->SetupAttachment(MeshComponent);
+	SpringArmComponent->SetupAttachment(BoxComponent);
 	CameraComponent->SetupAttachment(SpringArmComponent);
 
 	ExplodeSphereComponent->SetupAttachment(GetRootComponent());
@@ -111,6 +113,7 @@ void ADSimDronePawn::Tick(float DeltaTime)
 		HandleMovementFromInput(DeltaTime);
 	}
 }
+
 void ADSimDronePawn::SetTargetBot(AActor* InTargetBot)
 {
 	TargetBotActor = InTargetBot;
@@ -227,8 +230,8 @@ void ADSimDronePawn::ApplyAutopilotMovement(float DeltaTime)
 
 	const bool bCanAttack = CurrentTime - LastAttackTime >= AttackCooldown;
 	const bool bHasLineOfSight = IsValid(DronePerceptionComponent)
-		? DronePerceptionComponent->HasLineOfSightToTarget()
-		: true;
+		                             ? DronePerceptionComponent->HasLineOfSightToTarget()
+		                             : true;
 
 	if (DistanceToBot <= AttackRange && bHasLineOfSight && bCanAttack)
 	{
@@ -252,17 +255,7 @@ void ADSimDronePawn::OnDroneOverlapped(
 	const FHitResult& SweepResult
 )
 {
-	ADSimCharacter* DSimCharacter = Cast<ADSimCharacter>(OtherActor);
-	if (IsValid(DSimCharacter))
-	{
-		DSimCharacter->GetOverlappedDamage(100.0f);
-		DroneExplode();
-	}
-
-	if (IsValid(OtherActor) && OtherActor->ActorHasTag("Environment"))
-	{
-		DroneExplode();
-	}
+	DroneExplode();
 }
 
 void ADSimDronePawn::DroneExplode()
@@ -275,18 +268,24 @@ void ADSimDronePawn::DroneExplode()
 	TArray<AActor*> OverlappingActors;
 	ExplodeSphereComponent->GetOverlappingActors(OverlappingActors);
 
+	ADSimSimulationManager* SimulationManager = UDSimBlueprintFunctionLibrary::GetSimulationManager(this);
+	if (!IsValid(SimulationManager))
+	{
+		return;
+	}
+
+	if (OverlappingActors.Num() == 0)
+	{
+		SimulationManager->NotifyDroneCrashed(this);
+	}
+
 	for (AActor* Actor : OverlappingActors)
 	{
 		if (IsValid(Actor) && Actor->Implements<UDroneTargetInterface>())
 		{
 			Cast<IDroneTargetInterface>(Actor)->GetOverlappedDamage(100.0f);
+			SimulationManager->NotifyBotKilled(Actor);
 		}
-	}
-
-	ADSimGameMode* GameMode = Cast<ADSimGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
-	if (IsValid(GameMode))
-	{
-		GameMode->PlayerEndGame();
 	}
 }
 
@@ -296,7 +295,7 @@ void ADSimDronePawn::StopLogic()
 
 	SetAutopilotState(EDroneAutopilotState::Stopped);
 
-	
+
 	if (IsValid(StateTreeComponent))
 	{
 		StateTreeComponent->StopLogic(TEXT("Game stopped"));
@@ -510,7 +509,7 @@ bool ADSimDronePawn::TryPrepareAttackDive()
 	{
 		return true;
 	}
-	
+
 	if (!HasValidTargetBot() || !GetWorld())
 	{
 		return false;
@@ -638,14 +637,14 @@ EDroneAttackDiveResult ADSimDronePawn::TickAttackDive(float DeltaTime)
 	const FVector NewLocation = CurrentLocation + MoveDelta;
 
 	UE_LOG(LogTemp, Warning,
-		TEXT("Dive: Current=%s Target=%s Dir=%s Vel=%s Delta=%s DistImpact=%.2f DT=%.4f"),
-		*CurrentLocation.ToString(),
-		*AttackDiveTarget.ToString(),
-		*Direction.ToString(),
-		*CurrentAutopilotVelocity.ToString(),
-		*MoveDelta.ToString(),
-		DistanceToImpact,
-		DeltaTime
+	       TEXT("Dive: Current=%s Target=%s Dir=%s Vel=%s Delta=%s DistImpact=%.2f DT=%.4f"),
+	       *CurrentLocation.ToString(),
+	       *AttackDiveTarget.ToString(),
+	       *Direction.ToString(),
+	       *CurrentAutopilotVelocity.ToString(),
+	       *MoveDelta.ToString(),
+	       DistanceToImpact,
+	       DeltaTime
 	);
 
 	FHitResult SweepHit;
@@ -660,9 +659,9 @@ EDroneAttackDiveResult ADSimDronePawn::TickAttackDive(float DeltaTime)
 	if (SweepHit.bBlockingHit)
 	{
 		UE_LOG(LogTemp, Warning,
-			TEXT("Dive blocked by: %s at %s"),
-			*GetNameSafe(SweepHit.GetActor()),
-			*SweepHit.ImpactPoint.ToString()
+		       TEXT("Dive blocked by: %s at %s"),
+		       *GetNameSafe(SweepHit.GetActor()),
+		       *SweepHit.ImpactPoint.ToString()
 		);
 
 		AActor* HitActor = SweepHit.GetActor();
@@ -725,26 +724,77 @@ void ADSimDronePawn::AbortAttackDive()
 
 void ADSimDronePawn::ResetAutopilotRuntime()
 {
+	GetWorldTimerManager().ClearTimer(AutopilotStartDelayTimer);
+
+	bWaitingForAutopilotStart = false;
+
 	AbortAttackDive();
 
 	DesiredFlightTarget = FVector::ZeroVector;
 	SafeFlightTarget = FVector::ZeroVector;
 	CurrentAutopilotVelocity = FVector::ZeroVector;
-	LastAttackTime = -1000.f;
+	LastAttackTime = -1000.0f;
 
 	SetAutopilotState(EDroneAutopilotState::Idle);
 }
 
 void ADSimDronePawn::StartAutopilotLogic()
 {
-	if (IsValid(StateTreeComponent) && DroneControlMode != EDroneControlMode::HumanControlled)
+	GetWorldTimerManager().ClearTimer(AutopilotStartDelayTimer);
+
+	bWaitingForAutopilotStart = false;
+
+	if (DroneControlMode == EDroneControlMode::HumanControlled)
+	{
+		return;
+	}
+
+	if (!IsValid(StateTreeComponent))
+	{
+		return;
+	}
+
+	if (AutopilotStartDelay <= 0.0f)
 	{
 		StateTreeComponent->StartLogic();
+		return;
 	}
+
+	bWaitingForAutopilotStart = true;
+	SetAutopilotState(EDroneAutopilotState::Idle);
+
+	GetWorldTimerManager().SetTimer(
+		AutopilotStartDelayTimer,
+		this,
+		&ADSimDronePawn::FinishAutopilotStartDelay,
+		AutopilotStartDelay,
+		false
+	);
+}
+
+void ADSimDronePawn::FinishAutopilotStartDelay()
+{
+	bWaitingForAutopilotStart = false;
+
+	if (DroneControlMode == EDroneControlMode::HumanControlled)
+	{
+		return;
+	}
+
+	if (!IsValid(StateTreeComponent))
+	{
+		return;
+	}
+
+	StateTreeComponent->StartLogic();
 }
 
 void ADSimDronePawn::StopAutopilotLogic()
 {
+	GetWorldTimerManager().ClearTimer(AutopilotStartDelayTimer);
+
+	bWaitingForAutopilotStart = false;
+
 	SetAutopilotState(EDroneAutopilotState::Stopped);
 	AbortAttackDive();
 

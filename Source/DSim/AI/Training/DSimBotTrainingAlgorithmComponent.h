@@ -85,6 +85,32 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Training Algorithm")
 	const FDSimAlgorithmRuntimeContext& GetRuntimeContext() const { return RuntimeContext; }
 
+public:
+	UFUNCTION(BlueprintCallable, Category = "Training Summary")
+	void RecordSelectedAction(EBotAction Action);
+
+	UFUNCTION(BlueprintCallable, Category = "Training Summary")
+	void RecordTrainingReward(float Reward);
+
+	UFUNCTION(BlueprintPure, Category = "Training Summary")
+	const FDSimEpisodeSummary& GetCurrentEpisodeSummary() const { return CurrentEpisodeSummary; }
+
+	UFUNCTION(BlueprintCallable, Category = "Training Summary")
+	void SetEpisodeSummaryContext(
+		int32 InRunId,
+		int32 InPairIndex,
+		int32 InArenaId,
+		EDSimStateRepresentationMode InStateRepresentationMode,
+		const FString& InOutputTrainingFile
+	);
+
+protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Training Summary")
+	FDSimEpisodeSummary CurrentEpisodeSummary;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Training Summary")
+	float EpisodeStartTime = 0.0f;
+	
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Training Algorithm")
 	int32 CurrentEpisodeId = 0;

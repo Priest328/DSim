@@ -13,7 +13,9 @@
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "Components/SphereComponent.h"
 #include "DSim/AI/DSimCharacterAIController.h"
+#include "DSim/AI/Training/DSimSimulationManager.h"
 #include "DSim/Game/DSimGameMode.h"
+#include "DSim/Libraries/DSimBlueprintFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -55,16 +57,23 @@ inline void ADSimCharacter::PossessedBy(AController* NewController)
 
 void ADSimCharacter::GetOverlappedDamage(float DamageAmount)
 {
-	// TODO: Give Damage based on the distance from center of explosion
+	ADSimSimulationManager* SimulationManager = UDSimBlueprintFunctionLibrary::GetSimulationManager(this);
+
+	if (IsValid(SimulationManager))
+	{
+		SimulationManager->NotifyBotKilled(this);
+		return;
+	}
+
+	// Legacy fallback, якщо менеджера на рівні немає.
 	if (!IsValid(DSimAIController))
 	{
 		return;
 	}
 
-	ADSimGameMode* GameMode = Cast<ADSimGameMode>(UGameplayStatics::GetGameMode(this));
-	if (IsValid(GameMode))
+	if (IsValid(DSimAIController->RLComp))
 	{
-		DSimAIController->RLComp->ApplyReward(-2.2, true);
+		DSimAIController->RLComp->EndEpisode(EDSimEpisodeFinishReason::BotKilledByDrone);
 	}
 }
 

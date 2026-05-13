@@ -176,6 +176,13 @@ private:
 
 	void DrawDebugInfo() const;
 
+	void StartPairLogic(int32 PairIndex);
+	void StopPairLogic(int32 PairIndex);
+
+private:
+	void AppendEpisodeSummary(int32 PairIndex, EDSimEpisodeFinishReason FinishReason);
+	FString BuildEpisodeSummaryFileName(const FDSimExperimentPairConfig& Config) const;
+
 private:
 	UPROPERTY(EditAnywhere, Category = "DSim|Experiment")
 	bool bStartOnBeginPlay = false;

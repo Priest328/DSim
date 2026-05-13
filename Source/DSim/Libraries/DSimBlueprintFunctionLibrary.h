@@ -6,10 +6,12 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "DSimBlueprintFunctionLibrary.generated.h"
 
+class ADSimSimulationManager;
 class UDSimDebugComponent;
 /**
  * 
  */
+
 UCLASS()
 class DSIM_API UDSimBlueprintFunctionLibrary : public UBlueprintFunctionLibrary
 {
@@ -24,4 +26,6 @@ public:
 	                                       const TArray<FVector>& LocationPoints,
 	                                       FColor ColorToDrawPath, float SphereRadius,
 	                                       int32 SphereSegments);
+
+	static ADSimSimulationManager* GetSimulationManager(UObject* WorldContextObj);
 };

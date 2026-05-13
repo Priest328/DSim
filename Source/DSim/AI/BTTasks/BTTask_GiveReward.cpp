@@ -1,20 +1,48 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "DSim/AI/BTTasks/BTTask_GiveReward.h"
 
-#include "BehaviorTree/BlackboardComponent.h"
-#include "DSim/DSimDebugComponent.h"
+#include "AIController.h"
 #include "DSim/AI/DSimCharacterAIController.h"
+#include "DSim/AI/Training/DSimBotTrainingAlgorithmComponent.h"
 #include "DSim/Character/DSimCharacter.h"
-#include "DSim/Libraries/DSimBlueprintFunctionLibrary.h"
 
-EBTNodeResult::Type UBTTask_GiveReward::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
+UBTTask_GiveReward::UBTTask_GiveReward()
 {
-	ADSimCharacterAIController* Controller = Cast<ADSimCharacterAIController>(OwnerComp.GetOwner());
-	if (!IsValid(Controller)) return EBTNodeResult::Failed;
+	NodeName = TEXT("Give Training Reward");
+}
 
-	Controller->RLComp->ApplyReward(RewardAmount, false);
-	
-	return EBTNodeResult::Succeeded;
+EBTNodeResult::Type UBTTask_GiveReward::ExecuteTask(
+	UBehaviorTreeComponent& OwnerComp,
+	uint8* NodeMemory
+)
+{
+	ADSimCharacterAIController* Controller = Cast<ADSimCharacterAIController>(OwnerComp.GetAIOwner());
+	if (!IsValid(Controller))
+	{
+		return bFailIfNoAlgorithm ? EBTNodeResult::Failed : EBTNodeResult::Succeeded;
+	}
+
+	ADSimCharacter* Bot = Cast<ADSimCharacter>(Controller->GetPawn());
+
+	UDSimBotTrainingAlgorithmComponent* Algorithm = nullptr;
+
+	if (IsValid(Bot))
+	{
+		Algorithm = Bot->FindComponentByClass<UDSimBotTrainingAlgorithmComponent>();
+	}
+
+	if (!IsValid(Algorithm))
+	{
+		Algorithm = Controller->FindComponentByClass<UDSimBotTrainingAlgorithmComponent>();
+	}
+
+	if (!IsValid(Algorithm))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BTTask_GiveReward] No training algorithm found."));
+		return bFailIfNoAlgorithm ? EBTNodeResult::Failed : EBTNodeResult::Succeeded;
+	}
+
+	Algorithm->AddTrainingReward(RewardAmount);
+	Algorithm->RecordTrainingReward(RewardAmount);
+
+	return bFailEvenIfSucceed ? EBTNodeResult::Failed : EBTNodeResult::Succeeded;
 }

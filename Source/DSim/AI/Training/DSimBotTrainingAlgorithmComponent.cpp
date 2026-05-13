@@ -26,10 +26,28 @@ void UDSimBotTrainingAlgorithmComponent::SetGoalPosition(const FVector& NewGoalP
 void UDSimBotTrainingAlgorithmComponent::StartEpisode(int32 EpisodeId)
 {
 	CurrentEpisodeId = EpisodeId;
+
+	CurrentEpisodeSummary.EpisodeId = EpisodeId;
+	CurrentEpisodeSummary.AlgorithmName = GetAlgorithmName();
+	CurrentEpisodeSummary.FinishReason = EDSimEpisodeFinishReason::Unknown;
+	CurrentEpisodeSummary.TotalReward = 0.0f;
+	CurrentEpisodeSummary.EpisodeDuration = 0.0f;
+	CurrentEpisodeSummary.TowardGoalCount = 0;
+	CurrentEpisodeSummary.TowardCoverCount = 0;
+	CurrentEpisodeSummary.RandomMoveCount = 0;
+
+	EpisodeStartTime = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 }
 
 void UDSimBotTrainingAlgorithmComponent::EndEpisode(EDSimEpisodeFinishReason FinishReason)
 {
+	CurrentEpisodeSummary.FinishReason = FinishReason;
+
+	if (GetWorld())
+	{
+		CurrentEpisodeSummary.EpisodeDuration =
+			GetWorld()->GetTimeSeconds() - EpisodeStartTime;
+	}
 }
 
 EBotAction UDSimBotTrainingAlgorithmComponent::RequestTrainingAction()
@@ -54,4 +72,45 @@ bool UDSimBotTrainingAlgorithmComponent::SaveTrainingData(const FString& FileNam
 FString UDSimBotTrainingAlgorithmComponent::GetAlgorithmName() const
 {
 	return GetClass()->GetName();
+}
+
+void UDSimBotTrainingAlgorithmComponent::RecordSelectedAction(EBotAction Action)
+{
+	switch (Action)
+	{
+	case EBotAction::TowardGoal:
+		CurrentEpisodeSummary.TowardGoalCount++;
+		break;
+
+	case EBotAction::TowardCover:
+		CurrentEpisodeSummary.TowardCoverCount++;
+		break;
+
+	case EBotAction::RandomMove:
+		CurrentEpisodeSummary.RandomMoveCount++;
+		break;
+
+	default:
+		break;
+	}
+}
+
+void UDSimBotTrainingAlgorithmComponent::RecordTrainingReward(float Reward)
+{
+	CurrentEpisodeSummary.TotalReward += Reward;
+}
+
+void UDSimBotTrainingAlgorithmComponent::SetEpisodeSummaryContext(
+	int32 InRunId,
+	int32 InPairIndex,
+	int32 InArenaId,
+	EDSimStateRepresentationMode InStateRepresentationMode,
+	const FString& InOutputTrainingFile
+)
+{
+	CurrentEpisodeSummary.RunId = InRunId;
+	CurrentEpisodeSummary.PairIndex = InPairIndex;
+	CurrentEpisodeSummary.ArenaId = InArenaId;
+	CurrentEpisodeSummary.StateRepresentationMode = InStateRepresentationMode;
+	CurrentEpisodeSummary.OutputTrainingFile = InOutputTrainingFile;
 }

@@ -6,8 +6,10 @@
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "Components/BoxComponent.h"
 #include "DSim/AI/DSimCharacterAIController.h"
+#include "DSim/AI/Training/DSimSimulationManager.h"
 #include "DSim/Character/DSimCharacter.h"
 #include "DSim/Game/DSimGameMode.h"
+#include "DSim/Libraries/DSimBlueprintFunctionLibrary.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values
@@ -37,13 +39,13 @@ void ADSimGoalActor::OnBoxBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 		ADSimCharacterAIController* AIController = Cast<ADSimCharacterAIController>(Character->GetController());
 		if (IsValid(AIController))
 		{
-			AIController->RLComp->ApplyReward(2.2f, true);
-
-			ADSimGameMode* GameMode = Cast<ADSimGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
-			if (IsValid(GameMode))
+			ADSimSimulationManager* SimulationManager = UDSimBlueprintFunctionLibrary::GetSimulationManager(this);
+			if (!IsValid(SimulationManager))
 			{
-				GameMode->PlayerEndGame();
+				return;
 			}
+
+			SimulationManager->NotifyBotReachedGoal(Character);
 		}
 	}
 }

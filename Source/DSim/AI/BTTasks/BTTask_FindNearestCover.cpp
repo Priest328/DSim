@@ -66,6 +66,6 @@ EBTNodeResult::Type UBTTask_FindNearestCover::ExecuteTask(UBehaviorTreeComponent
 		}
 	}
 
-	OwnerComp.GetBlackboardComponent()->SetValueAsVector(AIBlackboardKeys::NearestCover, BestCover->GetActorLocation());
+	OwnerComp.GetBlackboardComponent()->SetValueAsVector(AIBlackboardKeys::NearestCover, FVector(BestCover->GetActorLocation().X, BestCover->GetActorLocation().Y, 70.f));
 	return EBTNodeResult::Succeeded;
 }

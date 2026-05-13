@@ -301,6 +301,7 @@ void UDSimReinforcementLearningComp::EndEpisode(EDSimEpisodeFinishReason FinishR
 	DecayEpsilon();
 
 	bCurrentEpisodeFinalized = true;
+	RecordTrainingReward(TerminalReward);
 }
 
 EBotAction UDSimReinforcementLearningComp::RequestTrainingAction()
@@ -842,9 +843,19 @@ bool UDSimReinforcementLearningComp::SaveTrainingData(const FString& FileName)
 
 	const FString Path = ResolveTrainingDataPath(FileName);
 	const FString Directory = FPaths::GetPath(Path);
+
 	IFileManager::Get().MakeDirectory(*Directory, true);
 
-	return DataRepository->Save(RLData2D, Path);
+	const bool bSaved = DataRepository->Save(RLData2D, Path);
+
+	UE_LOG(LogTemp, Warning,
+		TEXT("[RL] SaveTrainingData: %s | States=%d | Path=%s"),
+		bSaved ? TEXT("OK") : TEXT("FAILED"),
+		RLData2D.AllStates.Num(),
+		*Path
+	);
+
+	return bSaved;
 }
 
 bool UDSimReinforcementLearningComp::LoadTrainingData(const FString& FileName)
