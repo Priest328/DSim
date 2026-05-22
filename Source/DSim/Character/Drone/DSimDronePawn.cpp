@@ -266,6 +266,7 @@ void ADSimDronePawn::DroneExplode()
 	}
 
 	TArray<AActor*> OverlappingActors;
+	
 	ExplodeSphereComponent->GetOverlappingActors(OverlappingActors);
 
 	ADSimSimulationManager* SimulationManager = UDSimBlueprintFunctionLibrary::GetSimulationManager(this);
@@ -274,7 +275,7 @@ void ADSimDronePawn::DroneExplode()
 		return;
 	}
 
-	if (OverlappingActors.Num() == 0)
+	if (OverlappingActors.Num() == 0 || OverlappingActors[0] == this)
 	{
 		SimulationManager->NotifyDroneCrashed(this);
 	}

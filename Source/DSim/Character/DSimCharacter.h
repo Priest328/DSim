@@ -40,6 +40,9 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<ADSimCharacterAIController> DSimAIController;
+
+	UPROPERTY(EditAnywhere,BlueprintReadWrite, Category = "DSim|Training")
+	FName BotEnvironmentTag;
 };
 
 

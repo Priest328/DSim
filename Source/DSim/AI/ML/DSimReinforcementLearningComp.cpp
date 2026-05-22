@@ -251,8 +251,8 @@ void UDSimReinforcementLearningComp::InitializeAlgorithm(
 	PathLength = FMath::Max(10.f, FVector::Dist(StartPosition, GoalPosition));
 
 	StateDiscretizer = bUse2DState
-		? TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer2D())
-		: TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer1D());
+		                   ? TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer2D())
+		                   : TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer1D());
 
 	ActionPolicy = TUniquePtr<IRLActionPolicy>(new FEpsilonGreedyPolicy());
 	DataRepository = TUniquePtr<IRLDataRepository>(new FRLJsonRepository());
@@ -380,7 +380,8 @@ void UDSimReinforcementLearningComp::InitComponentData()
 	if (GoalPosition.IsNearlyZero())
 	{
 		TArray<AActor*> Goals;
-		UGameplayStatics::GetAllActorsOfClass(this, ADSimGoalActor::StaticClass(), Goals);
+		UGameplayStatics::GetAllActorsOfClassWithTag(this, ADSimGoalActor::StaticClass(), OwnerActor->BotEnvironmentTag,
+		                                             Goals);
 		if (!Goals.IsEmpty())
 		{
 			GoalPosition = Goals[0]->GetActorLocation();
@@ -389,8 +390,9 @@ void UDSimReinforcementLearningComp::InitComponentData()
 
 	PathLength = FMath::Max(10.f, FVector::Dist(StartPosition, GoalPosition));
 
-	StateDiscretizer = bUse2DState ? TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer2D())
-		: TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer1D());
+	StateDiscretizer = bUse2DState
+		                   ? TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer2D())
+		                   : TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer1D());
 
 	ActionPolicy = TUniquePtr<IRLActionPolicy>(new FEpsilonGreedyPolicy());
 	DataRepository = TUniquePtr<IRLDataRepository>(new FRLJsonRepository());
@@ -408,14 +410,15 @@ void UDSimReinforcementLearningComp::SetGoalPosition(const FVector& NewGoalPosit
 	if (OwnerActor)
 	{
 		StartPosition = StartPosition.IsNearlyZero()
-			? OwnerActor->GetActorLocation()
-			: StartPosition;
+			                ? OwnerActor->GetActorLocation()
+			                : StartPosition;
 
 		PathLength = FMath::Max(10.f, FVector::Dist(StartPosition, GoalPosition));
 	}
 }
 
-void UDSimReinforcementLearningComp::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UDSimReinforcementLearningComp::TickComponent(float DeltaTime, ELevelTick TickType,
+                                                   FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
@@ -562,8 +565,9 @@ EBotAction UDSimReinforcementLearningComp::RequestAction()
 
 	if (!StateDiscretizer)
 	{
-		StateDiscretizer = bUse2DState ? TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer2D())
-			: TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer1D());
+		StateDiscretizer = bUse2DState
+			                   ? TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer2D())
+			                   : TUniquePtr<IRLStateDiscretizer>(new FRLDiscretizer1D());
 	}
 	if (!ActionPolicy)
 	{
@@ -849,10 +853,10 @@ bool UDSimReinforcementLearningComp::SaveTrainingData(const FString& FileName)
 	const bool bSaved = DataRepository->Save(RLData2D, Path);
 
 	UE_LOG(LogTemp, Warning,
-		TEXT("[RL] SaveTrainingData: %s | States=%d | Path=%s"),
-		bSaved ? TEXT("OK") : TEXT("FAILED"),
-		RLData2D.AllStates.Num(),
-		*Path
+	       TEXT("[RL] SaveTrainingData: %s | States=%d | Path=%s"),
+	       bSaved ? TEXT("OK") : TEXT("FAILED"),
+	       RLData2D.AllStates.Num(),
+	       *Path
 	);
 
 	return bSaved;
@@ -883,7 +887,7 @@ bool UDSimReinforcementLearningComp::LoadTrainingData(const FString& FileName)
 	NumSections = FMath::Max(1, RLData2D.NumSections);
 	NumLanes = FMath::Max(1, RLData2D.NumLanes);
 	LaneHalfWidth = FMath::Max(1.f, RLData2D.LaneHalfWidth);
-	bUse2DState = NumLanes > 1;
+	bUse2DState = NumLanes >= 1;
 
 	RebuildStateIndex();
 
@@ -931,7 +935,8 @@ bool UDSimReinforcementLearningComp::LoadRLDataFromFile()
 
 			for (const FDSimRLSectionData& S : Legacy.AllSections)
 			{
-				const int32 SectionIndex = FMath::Clamp(FMath::RoundToInt(S.SectionKey * float(SafeSections)), 0, SafeSections);
+				const int32 SectionIndex = FMath::Clamp(FMath::RoundToInt(S.SectionKey * float(SafeSections)), 0,
+				                                        SafeSections);
 
 				FDSimRLStateKey K;
 				K.SectionIndex = SectionIndex;

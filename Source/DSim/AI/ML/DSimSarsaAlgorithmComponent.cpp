@@ -66,7 +66,8 @@ void UDSimSarsaAlgorithmComponent::InitializeAlgorithm(
 	if (GoalPosition.IsNearlyZero())
 	{
 		TArray<AActor*> Goals;
-		UGameplayStatics::GetAllActorsOfClass(this, ADSimGoalActor::StaticClass(), Goals);
+		UGameplayStatics::GetAllActorsOfClassWithTag(this, ADSimGoalActor::StaticClass(), OwnerActor->BotEnvironmentTag,
+		                                             Goals);
 
 		if (!Goals.IsEmpty())
 		{
@@ -188,8 +189,8 @@ void UDSimSarsaAlgorithmComponent::SetGoalPosition(const FVector& NewGoalPositio
 	if (OwnerActor)
 	{
 		StartPosition = StartPosition.IsNearlyZero()
-			? OwnerActor->GetActorLocation()
-			: StartPosition;
+			                ? OwnerActor->GetActorLocation()
+			                : StartPosition;
 
 		PathLength = FMath::Max(10.0f, FVector::Dist(StartPosition, GoalPosition));
 	}
@@ -354,8 +355,8 @@ FDSimSarsaStateData* UDSimSarsaAlgorithmComponent::FindStateByPackedKey(int32 Pa
 	}
 
 	return QTable.AllStates.IsValidIndex(*FoundIndex)
-		? &QTable.AllStates[*FoundIndex]
-		: nullptr;
+		       ? &QTable.AllStates[*FoundIndex]
+		       : nullptr;
 }
 
 FDSimSarsaStateData* UDSimSarsaAlgorithmComponent::FindOrAddState(const FDSimSarsaStateKey& Key)

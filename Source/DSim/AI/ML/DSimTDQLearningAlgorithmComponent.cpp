@@ -66,7 +66,8 @@ void UDSimTDQLearningAlgorithmComponent::InitializeAlgorithm(
 	if (GoalPosition.IsNearlyZero())
 	{
 		TArray<AActor*> Goals;
-		UGameplayStatics::GetAllActorsOfClass(this, ADSimGoalActor::StaticClass(), Goals);
+		UGameplayStatics::GetAllActorsOfClassWithTag(this, ADSimGoalActor::StaticClass(), OwnerActor->BotEnvironmentTag,
+		                                             Goals);
 
 		if (!Goals.IsEmpty())
 		{
@@ -338,8 +339,8 @@ FDSimTDQStateData* UDSimTDQLearningAlgorithmComponent::FindStateByPackedKey(int3
 	}
 
 	return QTable.AllStates.IsValidIndex(*FoundIndex)
-		? &QTable.AllStates[*FoundIndex]
-		: nullptr;
+		       ? &QTable.AllStates[*FoundIndex]
+		       : nullptr;
 }
 
 FDSimTDQStateData* UDSimTDQLearningAlgorithmComponent::FindOrAddState(const FDSimTDQStateKey& Key)

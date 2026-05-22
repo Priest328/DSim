@@ -69,7 +69,7 @@ void UDSimDoubleQLearningAlgorithmComponent::InitializeAlgorithm(
 	if (GoalPosition.IsNearlyZero())
 	{
 		TArray<AActor*> Goals;
-		UGameplayStatics::GetAllActorsOfClass(this, ADSimGoalActor::StaticClass(), Goals);
+		UGameplayStatics::GetAllActorsOfClassWithTag(this, ADSimGoalActor::StaticClass(), OwnerActor->BotEnvironmentTag, Goals);
 
 		if (!Goals.IsEmpty())
 		{

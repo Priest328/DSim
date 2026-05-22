@@ -23,7 +23,8 @@ void ADSimCharacterAIController::SetupDroneActor()
 {
 	TArray<AActor*> ResultActor;
 
-	UGameplayStatics::GetAllActorsOfClass(this, ADSimDronePawn::StaticClass(), ResultActor);
+	UGameplayStatics::GetAllActorsOfClassWithTag(this, ADSimDronePawn::StaticClass(), CharacterRef->BotEnvironmentTag,
+	                                             ResultActor);
 	if (ResultActor.IsEmpty())
 	{
 		return;
@@ -73,7 +74,6 @@ void ADSimCharacterAIController::BeginPlay()
 		GameMode->OnNeedToDrawDebugSpheres.AddDynamic(
 			this, &ADSimCharacterAIController::ADSimCharacterAIController::DrawLocations);
 	}
-	SetupDroneActor();
 
 	GetWorldTimerManager().SetTimer(LocationUpdateTimer, [this]()
 	{
@@ -83,10 +83,10 @@ void ADSimCharacterAIController::BeginPlay()
 		}
 		Locations.Add(CharacterRef->GetActorLocation());
 		FVector AdjustedPoint = FVector(
-		CharacterRef->GetActorLocation().X,
-		CharacterRef->GetActorLocation().Y,
-		CharacterRef->GetActorLocation().Z
-	);
+			CharacterRef->GetActorLocation().X,
+			CharacterRef->GetActorLocation().Y,
+			CharacterRef->GetActorLocation().Z
+		);
 
 		FActorSpawnParameters Params;
 		Params.Owner = GetOwner();
@@ -112,14 +112,17 @@ void ADSimCharacterAIController::OnPossess(APawn* InPawn)
 		RunBehaviorTree(BehaviorTreeComponent);
 	}
 
+	SetupDroneActor();
+
 	TArray<AActor*> Goals;
-	UGameplayStatics::GetAllActorsOfClass(this, ADSimGoalActor::StaticClass(), Goals);
+	UGameplayStatics::GetAllActorsOfClassWithTag(this, ADSimGoalActor::StaticClass(), CharacterRef->BotEnvironmentTag,
+	                                             Goals);
+	
 	if (!Goals.IsEmpty())
 	{
 		const FVector GoalPosition = Goals[0]->GetActorLocation();
 		GetBlackboardComponent()->SetValueAsVector(AIBlackboardKeys::GoalLocation, GoalPosition);
 
-		// Важливо для 2D-дискретизації, щоб RL-компонент знав актуальну ціль ще до першого RequestAction()
 		if (IsValid(RLComp))
 		{
 			RLComp->SetGoalPosition(GoalPosition);
