@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "AI/ML/DSimReinforcementLearningComp.h"
+#include "DSim/AI/ML/DSimReinforcementLearningComp.h"
 #include "Components/ActorComponent.h"
 #include "DSimDebugComponent.generated.h"
 

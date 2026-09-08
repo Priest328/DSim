@@ -13,6 +13,7 @@
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "Components/SphereComponent.h"
 #include "DSim/AI/DSimCharacterAIController.h"
+#include "DSim/AI/ML/DSimReinforcementLearningComp.h"
 #include "DSim/AI/Training/DSimSimulationManager.h"
 #include "DSim/Game/DSimGameMode.h"
 #include "DSim/Libraries/DSimBlueprintFunctionLibrary.h"

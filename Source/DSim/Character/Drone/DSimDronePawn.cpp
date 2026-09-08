@@ -307,6 +307,7 @@ void ADSimDronePawn::StopLogic()
 	FInputModeUIOnly InputMode;
 	if (IsValid(DroneController))
 	{
+		DroneController->bShowMouseCursor = true;
 		DroneController->HandleEndPlay();
 		DroneController->SetInputMode(InputMode);
 	}

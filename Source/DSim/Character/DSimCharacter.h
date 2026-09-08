@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "DSim/AI/ML/DSimReinforcementLearningComp.h"
 #include "DSim/Interfaces/DroneTargetInterface.h"
 #include "GameFramework/Character.h"
 #include "Logging/LogMacros.h"
